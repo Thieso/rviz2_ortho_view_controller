@@ -1,12 +1,12 @@
-# RViz Ortho View Controller
+# RViz2 Ortho View Controller
 
-An RViz plugin which provides an orthographic camera view controller. In contrast to the default top down ortho view
-included in RViz, the view controller allows arbitrary orientations, as well as the ability to lock the view to a
+An RViz2 plugin which provides an orthographic camera view controller. In contrast to the default top down ortho view
+included in RViz2, the view controller allows arbitrary orientations, as well as the ability to lock the view to a
 specific plane.
 
 ## Requirements
 
-* ROS Jade or Kinetic
+* ROS2 Humble
 
 ## Usage
 

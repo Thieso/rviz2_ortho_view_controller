@@ -1,4 +1,3 @@
-// Copyright 2016 Andrew Short
 #include "rviz_ortho_view_controller/ortho_view_controller.h"
 
 #include <OgreCamera.h>
@@ -9,62 +8,65 @@
 
 #include <QEvent>
 
-#include <rviz/display_context.h>
-#include <rviz/geometry.h>
-#include <rviz/ogre_helpers/orthographic.h>
-#include <rviz/ogre_helpers/shape.h>
-#include <rviz/properties/enum_property.h>
-#include <rviz/properties/float_property.h>
-#include <rviz/properties/quaternion_property.h>
-#include <rviz/properties/vector_property.h>
-#include <rviz/viewport_mouse_event.h>
+#include <rviz_common/display_context.hpp>
+#include <rviz_common/properties/enum_property.hpp>
+#include <rviz_common/properties/float_property.hpp>
+#include <rviz_common/properties/quaternion_property.hpp>
+#include <rviz_common/properties/vector_property.hpp>
+#include <rviz_common/viewport_mouse_event.hpp>
+#include <rviz_rendering/geometry.hpp>
+#include <rviz_rendering/objects/shape.hpp>
+#include <rviz_rendering/orthographic.hpp>
 
-#include <ros/console.h>
+// #include <ros/console.h>
 
-namespace rviz_ortho_view_controller
-{
+namespace ortho_view_controller {
 static const double VIEW_DISTANCE = 500.0;
 static const double DEFAULT_SCALE = 100.0;
 
-static const char *STATUS = "<b>Left-Click:</b> Rotate PY.  <b>Middle-Click:</b> Move XY.  "
-                            "<b>Right-Click/Mouse Wheel:</b> Zoom.  <b>Shift</b>: More options.";
+static const char *STATUS =
+    "<b>Left-Click:</b> Rotate PY.  <b>Middle-Click:</b> Move XY.  "
+    "<b>Right-Click/Mouse Wheel:</b> Zoom.  <b>Shift</b>: More options.";
 
-static const char *STATUS_SHIFT = "<b>Left-Click:</b> Rotate R.  <b>Middle-Click:</b> Move XY.  "
-                                  "<b>Right-Click:</b> Move Z.  <b>Mouse Wheel:</b> Zoom.";
+static const char *STATUS_SHIFT =
+    "<b>Left-Click:</b> Rotate R.  <b>Middle-Click:</b> Move XY.  "
+    "<b>Right-Click:</b> Move Z.  <b>Mouse Wheel:</b> Zoom.";
 
 OrthoViewController::OrthoViewController()
-  : plane_property_(new rviz::EnumProperty("Plane", "none", "Optionally lock the view to a plane", this))
-  , centre_property_(new rviz::VectorProperty("Centre", Ogre::Vector3::ZERO, "The focal point of the camera", this))
-  , orientation_property_(new rviz::QuaternionProperty("Orientation", Ogre::Quaternion::IDENTITY, "", this))
-  , scale_property_(new rviz::FloatProperty("Scale", DEFAULT_SCALE, "How much to scale up the scene", this))
-{
+    : plane_property_(new rviz_common::properties::EnumProperty(
+          "Plane", "none", "Optionally lock the view to a plane", this)),
+      centre_property_(new rviz_common::properties::VectorProperty(
+          "Centre", Ogre::Vector3::ZERO, "The focal point of the camera",
+          this)),
+      orientation_property_(new rviz_common::properties::QuaternionProperty(
+          "Orientation", Ogre::Quaternion::IDENTITY, "", this)),
+      scale_property_(new rviz_common::properties::FloatProperty(
+          "Scale", DEFAULT_SCALE, "How much to scale up the scene", this)) {
   plane_property_->addOption("none", PLANE_NONE);
   plane_property_->addOption("XY", PLANE_XY);
   plane_property_->addOption("XZ", PLANE_XZ);
   plane_property_->addOption("YZ", PLANE_YZ);
 
-  connect(plane_property_, SIGNAL(changed()), this, SLOT(onPlaneChanged()));
+  // connect(plane_property_, SIGNAL(changed()), this, SLOT(onPlaneChanged()));
 }
 
-OrthoViewController::~OrthoViewController()
-{
-}
+OrthoViewController::~OrthoViewController() {}
 
-void OrthoViewController::onInitialize()
-{
+void OrthoViewController::onInitialize() {
   FramePositionTrackingViewController::onInitialize();
 
   camera_->setProjectionType(Ogre::PT_ORTHOGRAPHIC);
   // camera_->setFixedYawAxis(false);
 
-  centre_shape_.reset(new rviz::Shape(rviz::Shape::Sphere, context_->getSceneManager(), target_scene_node_));
+  centre_shape_.reset(new rviz_rendering::Shape(rviz_rendering::Shape::Sphere,
+                                                context_->getSceneManager(),
+                                                target_scene_node_));
   centre_shape_->setScale(Ogre::Vector3(0.05f, 0.05f, 0.01f));
   centre_shape_->setColor(1.0f, 1.0f, 0.0f, 0.5f);
   centre_shape_->getRootNode()->setVisible(false);
 }
 
-void OrthoViewController::handleMouseEvent(rviz::ViewportMouseEvent &e)
-{
+void OrthoViewController::handleMouseEvent(rviz_common::ViewportMouseEvent &e) {
   bool moved = false;
 
   int dx = 0;
@@ -75,18 +77,13 @@ void OrthoViewController::handleMouseEvent(rviz::ViewportMouseEvent &e)
   else
     setStatus(STATUS);
 
-  if (e.type == QEvent::MouseButtonPress)
-  {
+  if (e.type == QEvent::MouseButtonPress) {
     dragging_ = true;
     centre_shape_->getRootNode()->setVisible(true);
-  }
-  else if (e.type == QEvent::MouseButtonRelease)
-  {
+  } else if (e.type == QEvent::MouseButtonRelease) {
     dragging_ = false;
     centre_shape_->getRootNode()->setVisible(false);
-  }
-  else if (e.type == QEvent::MouseMove && dragging_)
-  {
+  } else if (e.type == QEvent::MouseMove && dragging_) {
     moved = true;
 
     dx = e.x - e.last_x;
@@ -106,93 +103,75 @@ void OrthoViewController::handleMouseEvent(rviz::ViewportMouseEvent &e)
     orientation_property_->setQuaternion(q * orientation);
   };
 
-  if (e.left())
-  {
+  if (e.left()) {
     setCursor(rotate_cursor);
 
-    if (rotate_z)
-    {
+    if (rotate_z) {
       rotate(0.005 * dx, Ogre::Vector3::UNIT_Z);
-    }
-    else
-    {
+    } else {
       rotate(-0.005 * dx, Ogre::Vector3::UNIT_Y);
       rotate(-0.005 * dy, Ogre::Vector3::UNIT_X);
     }
-  }
-  else if (e.middle() || (e.left() && e.shift()))
-  {
+  } else if (e.middle() || (e.left() && e.shift())) {
     setCursor(MoveXY);
 
     auto scale = scale_property_->getFloat();
-    auto movement = orientation_property_->getQuaternion() * Ogre::Vector3(-dx / scale, dy / scale, 0);
+    auto movement = orientation_property_->getQuaternion() *
+                    Ogre::Vector3(-dx / scale, dy / scale, 0);
 
     centre_property_->add(movement);
-  }
-  else if (e.right() && !e.shift())
-  {
+  } else if (e.right() && !e.shift()) {
     setCursor(Zoom);
     scale_property_->multiply(1 - 0.01 * dy);
-  }
-  else if (e.right() && e.shift())
-  {
+  } else if (e.right() && e.shift()) {
     setCursor(MoveZ);
 
     auto scale = scale_property_->getFloat();
-    auto movement = orientation_property_->getQuaternion() * Ogre::Vector3(0, 0, dy / scale);
+    auto movement = orientation_property_->getQuaternion() *
+                    Ogre::Vector3(0, 0, dy / scale);
 
     centre_property_->add(movement);
-  }
-  else
-  {
+  } else {
     setCursor(e.shift() ? MoveXY : rotate_cursor);
   }
 
-  if (e.wheel_delta)
-  {
+  if (e.wheel_delta) {
     moved = true;
     scale_property_->multiply(1 + 0.001 * e.wheel_delta);
   }
 
-  if (moved)
-  {
+  if (moved) {
     context_->queueRender();
     emitConfigChanged();
   }
 }
 
-void OrthoViewController::lookAt(const Ogre::Vector3 &p)
-{
+void OrthoViewController::lookAt(const Ogre::Vector3 &p) {
   centre_property_->setVector(p - target_scene_node_->getPosition());
 }
 
-void OrthoViewController::reset()
-{
+void OrthoViewController::reset() {
   plane_property_->setString("none");
   centre_property_->setVector(Ogre::Vector3::ZERO);
   orientation_property_->setQuaternion(Ogre::Quaternion::IDENTITY);
   scale_property_->setFloat(DEFAULT_SCALE);
 }
 
-void OrthoViewController::mimic(rviz::ViewController *source)
-{
+void OrthoViewController::mimic(rviz_common::ViewController *source) {
   FramePositionTrackingViewController::mimic(source);
 
-  if (auto *source_ortho = qobject_cast<OrthoViewController *>(source))
-  {
+  if (auto *source_ortho = qobject_cast<OrthoViewController *>(source)) {
     plane_property_->setString(source_ortho->plane_property_->getString());
     centre_property_->setVector(source_ortho->centre_property_->getVector());
-    orientation_property_->setQuaternion(source_ortho->orientation_property_->getQuaternion());
+    orientation_property_->setQuaternion(
+        source_ortho->orientation_property_->getQuaternion());
     scale_property_->setFloat(source_ortho->scale_property_->getFloat());
-  }
-  else
-  {
+  } else {
     centre_property_->setVector(source->getCamera()->getPosition());
   }
 }
 
-void OrthoViewController::update(float dt, float ros_dt)
-{
+void OrthoViewController::update(float dt, float ros_dt) {
   FramePositionTrackingViewController::update(dt, ros_dt);
 
   // Build the projection matrix.
@@ -203,8 +182,8 @@ void OrthoViewController::update(float dt, float ros_dt)
   auto near = camera_->getNearClipDistance();
   auto far = camera_->getFarClipDistance();
 
-  Ogre::Matrix4 projection;
-  rviz::buildScaledOrthoMatrix(projection, -width, width, -height, height, near, far);
+  Ogre::Matrix4 projection = rviz_rendering::buildScaledOrthoMatrix(
+      -width, width, -height, height, near, far);
 
   camera_->setCustomProjectionMatrix(true, projection);
 
@@ -213,21 +192,20 @@ void OrthoViewController::update(float dt, float ros_dt)
   auto orientation = orientation_property_->getQuaternion();
 
   camera_->setOrientation(orientation);
-  camera_->setPosition(centre + orientation * Ogre::Vector3::UNIT_Z * VIEW_DISTANCE);
+  camera_->setPosition(centre +
+                       orientation * Ogre::Vector3::UNIT_Z * VIEW_DISTANCE);
 
   centre_shape_->setPosition(centre);
 }
 
-void OrthoViewController::onPlaneChanged()
-{
+void OrthoViewController::onPlaneChanged() {
   auto plane = getPlane();
   bool locked = plane != PLANE_NONE;
 
   orientation_property_->setReadOnly(locked);
   orientation_property_->setHidden(locked);
 
-  if (locked)
-  {
+  if (locked) {
     auto orientation = Ogre::Quaternion::IDENTITY;
 
     // TODO(lucasw) fix XZ and YZ planes.
@@ -240,10 +218,10 @@ void OrthoViewController::onPlaneChanged()
   }
 }
 
-OrthoViewController::Plane OrthoViewController::getPlane() const
-{
+OrthoViewController::Plane OrthoViewController::getPlane() const {
   return static_cast<Plane>(plane_property_->getOptionInt());
 }
-}  // namespace rviz_ortho_view_controller
+} // namespace ortho_view_controller
 
-PLUGINLIB_EXPORT_CLASS(rviz_ortho_view_controller::OrthoViewController, rviz::ViewController);
+PLUGINLIB_EXPORT_CLASS(ortho_view_controller::OrthoViewController,
+                       rviz_common::ViewController);
